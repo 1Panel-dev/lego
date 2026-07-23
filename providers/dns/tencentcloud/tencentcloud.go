@@ -11,9 +11,9 @@ import (
 	"github.com/go-acme/lego/v5/challenge"
 	"github.com/go-acme/lego/v5/challenge/dns01"
 	"github.com/go-acme/lego/v5/platform/env"
-	dnspod "github.com/go-acme/tencentclouddnspod/v20210323"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
+	dnspod "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/dnspod/v20210323"
 )
 
 // Environment variables names.
@@ -137,7 +137,7 @@ func (d *DNSProvider) Present(ctx context.Context, domain, token, keyAuth string
 	request.Value = common.StringPtr(info.Value)
 	request.TTL = common.Uint64Ptr(uint64(d.config.TTL))
 
-	_, err = dnspod.CreateRecordWithContext(ctx, d.client, request)
+	_, err = d.client.CreateRecordWithContext(ctx, request)
 	if err != nil {
 		return fmt.Errorf("dnspod: API call failed: %w", err)
 	}
@@ -165,7 +165,7 @@ func (d *DNSProvider) CleanUp(ctx context.Context, domain, token, keyAuth string
 		request.DomainId = zone.DomainId
 		request.RecordId = record.RecordId
 
-		_, err := dnspod.DeleteRecordWithContext(ctx, d.client, request)
+		_, err := d.client.DeleteRecordWithContext(ctx, request)
 		if err != nil {
 			return fmt.Errorf("tencentcloud: delete record failed: %w", err)
 		}

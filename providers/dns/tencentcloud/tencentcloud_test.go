@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-acme/lego/v5/internal/tester"
 	"github.com/stretchr/testify/require"
+	dnspod "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/dnspod/v20210323"
 )
 
 const envDomain = envNamespace + "DOMAIN"
@@ -120,6 +121,16 @@ func TestNewDNSProviderConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDNSProviderUsesOfficialTencentCloudClient(t *testing.T) {
+	config := NewDefaultConfig()
+	config.SecretID = "123"
+	config.SecretKey = "456"
+
+	provider, err := NewDNSProviderConfig(config)
+	require.NoError(t, err)
+	require.IsType(t, &dnspod.Client{}, provider.client)
 }
 
 func TestLivePresent(t *testing.T) {

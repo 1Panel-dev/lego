@@ -36,7 +36,6 @@ require (
 	github.com/go-acme/alidns-20150109/v5 v5.5.0
 	github.com/go-acme/esa-20240910/v3 v3.4.0
 	github.com/go-acme/jdcloud-sdk-go v1.64.0
-	github.com/go-acme/tencentclouddnspod v1.3.24
 	github.com/go-acme/tencentedgdeone v1.3.38
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-viper/mapstructure/v2 v2.5.0
@@ -84,6 +83,7 @@ require (
 	github.com/softlayer/softlayer-go v1.2.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.133
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/dnspod v1.3.131
 	github.com/transip/gotransip/v6 v6.27.2
 	github.com/ucloud/ucloud-sdk-go v0.22.90
 	github.com/ultradns/ultradns-go-sdk v1.8.2-20260507133303-3f324c7
