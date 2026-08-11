@@ -1,19 +1,19 @@
-package poweradmin
+package nexdns
 
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/go-acme/lego/v5/internal/tester"
 	"github.com/go-acme/lego/v5/internal/tester/servermock"
-	"github.com/go-acme/lego/v5/providers/dns/poweradmin/internal"
 	"github.com/stretchr/testify/require"
 )
 
 const envDomain = envNamespace + "DOMAIN"
 
-var envTest = tester.NewEnvTest(EnvBaseURL, EnvAPIKey).WithDomain(envDomain)
+var envTest = tester.NewEnvTest(EnvAPIToken).WithDomain(envDomain)
 
 func TestNewDNSProvider(t *testing.T) {
 	testCases := []struct {
@@ -24,30 +24,13 @@ func TestNewDNSProvider(t *testing.T) {
 		{
 			desc: "success",
 			envVars: map[string]string{
-				EnvBaseURL: "https://example.com",
-				EnvAPIKey:  "secret",
+				EnvAPIToken: "secret",
 			},
-		},
-		{
-			desc: "missing base URL",
-			envVars: map[string]string{
-				EnvBaseURL: "",
-				EnvAPIKey:  "secret",
-			},
-			expected: "poweradmin: some credentials information are missing: POWERADMIN_BASE_URL",
-		},
-		{
-			desc: "missing API key",
-			envVars: map[string]string{
-				EnvBaseURL: "https://example.com",
-				EnvAPIKey:  "",
-			},
-			expected: "poweradmin: some credentials information are missing: POWERADMIN_API_KEY",
 		},
 		{
 			desc:     "missing credentials",
 			envVars:  map[string]string{},
-			expected: "poweradmin: some credentials information are missing: POWERADMIN_BASE_URL,POWERADMIN_API_KEY",
+			expected: "nexdns: some credentials information are missing: NEXDNS_API_TOKEN",
 		},
 	}
 
@@ -76,36 +59,23 @@ func TestNewDNSProvider(t *testing.T) {
 func TestNewDNSProviderConfig(t *testing.T) {
 	testCases := []struct {
 		desc     string
-		baseURL  string
-		apiKey   string
+		apiToken string
 		expected string
 	}{
 		{
-			desc:    "success",
-			baseURL: "https://example.com",
-			apiKey:  "secret",
-		},
-		{
-			desc:     "missing base URL",
-			apiKey:   "secret",
-			expected: "poweradmin: missing base URL",
-		},
-		{
-			desc:     "missing API key",
-			baseURL:  "https://example.com",
-			expected: "poweradmin: credentials missing",
+			desc:     "success",
+			apiToken: "secret",
 		},
 		{
 			desc:     "missing credentials",
-			expected: "poweradmin: missing base URL",
+			expected: "nexdns: credentials missing",
 		},
 	}
 
 	for _, test := range testCases {
 		t.Run(test.desc, func(t *testing.T) {
 			config := NewDefaultConfig()
-			config.BaseURL = test.baseURL
-			config.APIKey = test.apiKey
+			config.APIToken = test.apiToken
 
 			p, err := NewDNSProviderConfig(config)
 
@@ -153,8 +123,7 @@ func mockBuilder() *servermock.Builder[*DNSProvider] {
 	return servermock.NewBuilder(
 		func(server *httptest.Server) (*DNSProvider, error) {
 			config := NewDefaultConfig()
-			config.BaseURL = server.URL
-			config.APIKey = "secret"
+			config.APIToken = "secret"
 			config.HTTPClient = server.Client()
 
 			p, err := NewDNSProviderConfig(config)
@@ -162,24 +131,26 @@ func mockBuilder() *servermock.Builder[*DNSProvider] {
 				return nil, err
 			}
 
+			p.client.BaseURL, _ = url.Parse(server.URL)
+
 			return p, nil
 		},
 		servermock.CheckHeader().
 			WithJSONHeaders().
-			With(internal.AuthenticationHeader, "secret"),
+			WithAuthorization("Bearer secret"),
 	)
 }
 
 func TestDNSProvider_Present(t *testing.T) {
 	provider := mockBuilder().
-		Route("GET /api/v2/zones",
-			servermock.ResponseFromInternal("zones.json"),
+		Route("GET /zones",
+			servermock.ResponseFromInternal("list_zones.json"),
 			servermock.CheckQueryParameter().Strict().
-				With("page", "1").
+				With("search", "example.com").
 				With("per_page", "100"),
 		).
-		Route("POST /api/v2/zones/1/records",
-			servermock.ResponseFromInternal("create_record_int.json").
+		Route("POST /zones/xK9mQ2vR/records",
+			servermock.ResponseFromInternal("create_record.json").
 				WithStatusCode(http.StatusCreated),
 			servermock.CheckRequestJSONBodyFromInternal("create_record-request.json"),
 		).
@@ -191,15 +162,23 @@ func TestDNSProvider_Present(t *testing.T) {
 
 func TestDNSProvider_CleanUp(t *testing.T) {
 	provider := mockBuilder().
-		Route("DELETE /api/v2/zones/1/records/456",
-			servermock.ResponseFromInternal("delete_record.json").
-				WithStatusCode(http.StatusNoContent),
+		Route("DELETE /zones/xK9mQ2vR/records/Rk3pW9xd",
+			servermock.Noop().WithStatusCode(http.StatusNoContent),
 		).
 		Build(t)
 
-	provider.zoneIDs["abc"] = 1
-	provider.recordIDs["abc"] = "456"
+	token := "abc"
+
+	provider.zoneIDs[token] = "xK9mQ2vR"
+	provider.recordIDs[token] = "Rk3pW9xd"
+
+	err := provider.CleanUp(t.Context(), "example.com", token, "123d==")
+	require.NoError(t, err)
+}
+
+func TestDNSProvider_CleanUp_withoutPresent(t *testing.T) {
+	provider := mockBuilder().Build(t)
 
 	err := provider.CleanUp(t.Context(), "example.com", "abc", "123d==")
-	require.NoError(t, err)
+	require.EqualError(t, err, "nexdns: unknown zone ID for '_acme-challenge.example.com.' 'abc'")
 }
